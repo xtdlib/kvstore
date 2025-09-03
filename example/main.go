@@ -1,22 +1,20 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/xtdlib/kvstore"
+	"github.com/xtdlib/rat"
 )
 
 func main() {
-	store := kvstore.New[string, string]("example")
+	store := kvstore.New[string, *rat.Rational]("example")
 
-	store.Set("name", "John")
-	store.Set("city", "New York")
+	store.Set("account1", rat.Rat(0.2))
+	store.Set("account2", rat.Rat(0.1))
 
-	val, err := store.Get("name", "")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("name:", val)
-
-	store.Delete("city")
+	sum := rat.Rat(0)
+	store.ForEach(func(key string, value *rat.Rational) error {
+		sum = sum.Add(value)
+		return nil
+	})
+	println("sum: " + sum.String()) // sum: 0.3
 }
