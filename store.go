@@ -153,3 +153,11 @@ func (s *KV[T1, T2]) ForEach(fn func(key T1, value T2) error) error {
 	}
 	return rows.Err()
 }
+
+func (s *KV[T1, T2]) Clear() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	sql := fmt.Sprintf("DELETE FROM %s", s.table)
+	_, err := s.db.ExecContext(ctx, sql)
+	return err
+}

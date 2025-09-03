@@ -133,3 +133,64 @@ func TestForEach(t *testing.T) {
 		t.Fatalf("Expected sum of 6, got %d", sum)
 	}
 }
+
+func TestClear(t *testing.T) {
+	kv := kvstore.New[string, string]("test_clear")
+
+	// Add test data
+	kv.Set("key1", "value1")
+	kv.Set("key2", "value2")
+	kv.Set("key3", "value3")
+
+	// Verify data exists
+	val, err := kv.Get("key1", "")
+	if err != nil {
+		t.Fatalf("Get before clear failed: %v", err)
+	}
+	if val != "value1" {
+		t.Fatalf("Got %s, expected value1", val)
+	}
+
+	// Clear all data
+	err = kv.Clear()
+	if err != nil {
+		t.Fatalf("Clear failed: %v", err)
+	}
+
+	// Verify all data is gone
+	_, err = kv.Get("key1", "")
+	if err == nil {
+		t.Fatal("Expected error for key1 after clear")
+	}
+	_, err = kv.Get("key2", "")
+	if err == nil {
+		t.Fatal("Expected error for key2 after clear")
+	}
+	_, err = kv.Get("key3", "")
+	if err == nil {
+		t.Fatal("Expected error for key3 after clear")
+	}
+
+	// Verify we can add new data after clear
+	err = kv.Set("newkey", "newvalue")
+	if err != nil {
+		t.Fatalf("Set after clear failed: %v", err)
+	}
+	val, err = kv.Get("newkey", "")
+	if err != nil {
+		t.Fatalf("Get after clear failed: %v", err)
+	}
+	if val != "newvalue" {
+		t.Fatalf("Got %s, expected newvalue", val)
+	}
+}
+
+func TestClearEmpty(t *testing.T) {
+	kv := kvstore.New[string, string]("test_clear_empty")
+
+	// Clear empty store should not error
+	err := kv.Clear()
+	if err != nil {
+		t.Fatalf("Clear empty store failed: %v", err)
+	}
+}
