@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	store := kvstore.New[string, *rat.Rational]("example")
+	store := kvstore.New[string, *rat.Rational]("balance")
 
 	store.Set("account1", rat.Rat(0.2))
 	store.Set("account2", rat.Rat(0.1))
