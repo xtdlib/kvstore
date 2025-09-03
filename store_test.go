@@ -1,27 +1,20 @@
-package kv2_test
+package kvstore_test
 
 import (
-	"os"
 	"testing"
 
-	"github.com/xtdlib/kv2"
+	"github.com/xtdlib/kvstore"
 )
 
 func TestNew(t *testing.T) {
-	dbFile := "test.db"
-	defer os.Remove(dbFile)
-
-	kv := kv2.New[string, string](dbFile)
+	kv := kvstore.New[string, string]("test_new")
 	if kv == nil {
 		t.Fatal("New returned nil")
 	}
 }
 
 func TestSetGet(t *testing.T) {
-	dbFile := "test.db"
-	defer os.Remove(dbFile)
-
-	kv := kv2.New[string, string](dbFile)
+	kv := kvstore.New[string, string]("test_setget")
 
 	err := kv.Set("key1", "value1")
 	if err != nil {
@@ -38,10 +31,7 @@ func TestSetGet(t *testing.T) {
 }
 
 func TestSetReplace(t *testing.T) {
-	dbFile := "test.db"
-	defer os.Remove(dbFile)
-
-	kv := kv2.New[string, string](dbFile)
+	kv := kvstore.New[string, string]("test_replace")
 
 	err := kv.Set("key1", "value1")
 	if err != nil {
@@ -63,10 +53,7 @@ func TestSetReplace(t *testing.T) {
 }
 
 func TestGetNotFound(t *testing.T) {
-	dbFile := "test.db"
-	defer os.Remove(dbFile)
-
-	kv := kv2.New[string, string](dbFile)
+	kv := kvstore.New[string, string]("test_notfound")
 
 	_, err := kv.Get("nonexistent", "")
 	if err == nil {
@@ -75,10 +62,7 @@ func TestGetNotFound(t *testing.T) {
 }
 
 func TestIntKeys(t *testing.T) {
-	dbFile := "test.db"
-	defer os.Remove(dbFile)
-
-	kv := kv2.New[int, string](dbFile)
+	kv := kvstore.New[int, string]("test_intkeys")
 
 	err := kv.Set(42, "answer")
 	if err != nil {
@@ -95,10 +79,7 @@ func TestIntKeys(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	dbFile := "test.db"
-	defer os.Remove(dbFile)
-
-	kv := kv2.New[string, string](dbFile)
+	kv := kvstore.New[string, string]("test_delete")
 
 	err := kv.Set("key1", "value1")
 	if err != nil {
@@ -117,13 +98,38 @@ func TestDelete(t *testing.T) {
 }
 
 func TestDeleteNonExistent(t *testing.T) {
-	dbFile := "test.db"
-	defer os.Remove(dbFile)
-
-	kv := kv2.New[string, string](dbFile)
+	kv := kvstore.New[string, string]("test_delete_nonexistent")
 
 	err := kv.Delete("nonexistent")
 	if err != nil {
 		t.Fatalf("Delete nonexistent key failed: %v", err)
+	}
+}
+
+func TestForEach(t *testing.T) {
+	kv := kvstore.New[string, int]("test_foreach")
+
+	// Add test data
+	kv.Set("a", 1)
+	kv.Set("b", 2)
+	kv.Set("c", 3)
+
+	// Count items
+	count := 0
+	sum := 0
+	err := kv.ForEach(func(key string, value int) error {
+		count++
+		sum += value
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("ForEach failed: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("Expected 3 items, got %d", count)
+	}
+	if sum != 6 {
+		t.Fatalf("Expected sum of 6, got %d", sum)
 	}
 }

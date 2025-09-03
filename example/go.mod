@@ -1,6 +1,8 @@
-module github.com/xtdlib/kvstore
+module github.com/xtdlib/kvstore/example
 
 go 1.24.3
+
+require github.com/xtdlib/kvstore v0.0.0
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -15,3 +17,5 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.38.2 // indirect
 )
+
+replace github.com/xtdlib/kvstore => ../
