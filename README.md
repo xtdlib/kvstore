@@ -27,10 +27,10 @@ func main() {
 
 ## API
 
-- `New[K, V](name)` - Create new store
-- `Set(K, V)` - Set key-value pair
-- `Get(K, V)` - Get value by key
-- `Delete(K)` - Delete key
-- `Clear()` - Clear all entries
-- `ForEach(func(K, V))` - Iterate over all entries
+- `New[K, V](name)`
+- `Set(K, V)`
+- `Get(K, V)`
+- `Delete(K)`
+- `Clear()`
+- `ForEach(func(K, V))`
 
