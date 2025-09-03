@@ -1,5 +1,7 @@
 # kvstore
 
+generic kv store library backed by sqlite. 
+
 ```
 package main
 
