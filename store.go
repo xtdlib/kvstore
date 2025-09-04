@@ -26,7 +26,7 @@ func getSharedDB() (*sql.DB, error) {
 	var err error
 	dbOnce.Do(func() {
 		var cacheDir string
-		
+
 		// Get XDG cache directory
 		cacheDir = os.Getenv("XDG_CACHE_HOME")
 		if cacheDir == "" {
@@ -59,10 +59,10 @@ func getSharedDB() (*sql.DB, error) {
 		// Enable WAL mode and set pragmas for better concurrency
 		// WAL allows concurrent reads and one writer
 		pragmas := []string{
-			"PRAGMA journal_mode=WAL",      // Enable Write-Ahead Logging
-			"PRAGMA synchronous=NORMAL",    // Good balance of safety and speed
-			"PRAGMA busy_timeout=10000",    // Wait up to 10 seconds when database is locked
-			"PRAGMA cache_size=-32000",     // 32MB cache
+			"PRAGMA journal_mode=WAL",   // Enable Write-Ahead Logging
+			"PRAGMA synchronous=NORMAL", // Good balance of safety and speed
+			"PRAGMA busy_timeout=10000", // Wait up to 10 seconds when database is locked
+			"PRAGMA cache_size=-32000",  // 32MB cache
 		}
 
 		for _, pragma := range pragmas {
@@ -73,11 +73,36 @@ func getSharedDB() (*sql.DB, error) {
 		}
 
 		// Set connection pool settings for better concurrency
-		sharedDB.SetMaxOpenConns(25)    // Allow multiple readers
+		sharedDB.SetMaxOpenConns(25) // Allow multiple readers
 		sharedDB.SetMaxIdleConns(25)
 		sharedDB.SetConnMaxLifetime(5 * time.Minute)
 	})
 	return sharedDB, err
+}
+
+func Open[T1 any, T2 any](dbPath string, name string) (*KV[T1, T2], error) {
+	connStr := fmt.Sprintf("%s?_busy_timeout=10000&_journal=WAL&_sync=NORMAL", dbPath)
+	db, err := sql.Open("sqlite", connStr)
+	if err != nil {
+		return nil, err
+	}
+
+	store := &KV[T1, T2]{
+		db:    db,
+		table: name,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Create table with sanitized name
+	createSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (key TEXT PRIMARY KEY, value TEXT)", store.table)
+	_, err = store.db.ExecContext(ctx, createSQL)
+	if err != nil {
+		return nil, err
+	}
+
+	return store, nil
 }
 
 func New[T1 any, T2 any](name string) *KV[T1, T2] {
@@ -93,14 +118,14 @@ func New[T1 any, T2 any](name string) *KV[T1, T2] {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	
+
 	// Create table with sanitized name
 	createSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (key TEXT PRIMARY KEY, value TEXT)", store.table)
 	_, err = store.db.ExecContext(ctx, createSQL)
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return store
 }
 
