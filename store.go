@@ -80,7 +80,7 @@ func getSharedDB() (*sql.DB, error) {
 	return sharedDB, err
 }
 
-func Open[T1 any, T2 any](dbPath string, name string) (*KV[T1, T2], error) {
+func NewAt[T1 any, T2 any](dbPath string, name string) (*KV[T1, T2], error) {
 	connStr := fmt.Sprintf("%s?_busy_timeout=10000&_journal=WAL&_sync=NORMAL", dbPath)
 	db, err := sql.Open("sqlite", connStr)
 	if err != nil {
