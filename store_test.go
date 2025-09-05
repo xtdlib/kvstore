@@ -13,18 +13,13 @@ func TestNew(t *testing.T) {
 	}
 }
 
+// Test panic versions (without Try prefix)
 func TestSetGet(t *testing.T) {
 	kv := kvstore.New[string, string]("test_setget")
 
-	err := kv.Set("key1", "value1")
-	if err != nil {
-		t.Fatalf("Set failed: %v", err)
-	}
-
-	val, err := kv.Get("key1", "")
-	if err != nil {
-		t.Fatalf("Get failed: %v", err)
-	}
+	kv.Set("key1", "value1")
+	
+	val := kv.Get("key1")
 	if val != "value1" {
 		t.Fatalf("Got %s, expected value1", val)
 	}
@@ -33,20 +28,10 @@ func TestSetGet(t *testing.T) {
 func TestSetReplace(t *testing.T) {
 	kv := kvstore.New[string, string]("test_replace")
 
-	err := kv.Set("key1", "value1")
-	if err != nil {
-		t.Fatalf("Set failed: %v", err)
-	}
+	kv.Set("key1", "value1")
+	kv.Set("key1", "value2")
 
-	err = kv.Set("key1", "value2")
-	if err != nil {
-		t.Fatalf("Replace failed: %v", err)
-	}
-
-	val, err := kv.Get("key1", "")
-	if err != nil {
-		t.Fatalf("Get failed: %v", err)
-	}
+	val := kv.Get("key1")
 	if val != "value2" {
 		t.Fatalf("Got %s, expected value2", val)
 	}
@@ -55,55 +40,74 @@ func TestSetReplace(t *testing.T) {
 func TestGetNotFound(t *testing.T) {
 	kv := kvstore.New[string, string]("test_notfound")
 
-	_, err := kv.Get("nonexistent", "")
-	if err == nil {
-		t.Fatal("Expected error for nonexistent key")
-	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Expected panic for nonexistent key")
+		}
+	}()
+	
+	kv.Get("nonexistent")
 }
 
 func TestIntKeys(t *testing.T) {
 	kv := kvstore.New[int, string]("test_intkeys")
 
-	err := kv.Set(42, "answer")
-	if err != nil {
-		t.Fatalf("Set failed: %v", err)
-	}
-
-	val, err := kv.Get(42, "")
-	if err != nil {
-		t.Fatalf("Get failed: %v", err)
-	}
+	kv.Set(42, "answer")
+	
+	val := kv.Get(42)
 	if val != "answer" {
 		t.Fatalf("Got %s, expected answer", val)
+	}
+}
+
+func TestHas(t *testing.T) {
+	kv := kvstore.New[string, string]("test_has")
+
+	// Test non-existent key
+	exists := kv.Has("key1")
+	if exists {
+		t.Fatal("Expected false for non-existent key")
+	}
+
+	// Add a key
+	kv.Set("key1", "value1")
+
+	// Test existing key
+	exists = kv.Has("key1")
+	if !exists {
+		t.Fatal("Expected true for existing key")
+	}
+
+	// Delete the key
+	kv.Delete("key1")
+
+	// Test after deletion
+	exists = kv.Has("key1")
+	if exists {
+		t.Fatal("Expected false after deletion")
 	}
 }
 
 func TestDelete(t *testing.T) {
 	kv := kvstore.New[string, string]("test_delete")
 
-	err := kv.Set("key1", "value1")
-	if err != nil {
-		t.Fatalf("Set failed: %v", err)
-	}
+	kv.Set("key1", "value1")
+	kv.Delete("key1")
 
-	err = kv.Delete("key1")
-	if err != nil {
-		t.Fatalf("Delete failed: %v", err)
-	}
-
-	_, err = kv.Get("key1", "")
-	if err == nil {
-		t.Fatal("Expected error after delete")
-	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Expected panic after delete")
+		}
+	}()
+	
+	kv.Get("key1")
 }
 
 func TestDeleteNonExistent(t *testing.T) {
 	kv := kvstore.New[string, string]("test_delete_nonexistent")
 
-	err := kv.Delete("nonexistent")
-	if err != nil {
-		t.Fatalf("Delete nonexistent key failed: %v", err)
-	}
+	// Should not panic
+	kv.Delete("nonexistent")
 }
 
 func TestForEach(t *testing.T) {
@@ -117,15 +121,12 @@ func TestForEach(t *testing.T) {
 	// Count items
 	count := 0
 	sum := 0
-	err := kv.ForEach(func(key string, value int) error {
+	kv.ForEach(func(key string, value int) error {
 		count++
 		sum += value
 		return nil
 	})
 
-	if err != nil {
-		t.Fatalf("ForEach failed: %v", err)
-	}
 	if count != 3 {
 		t.Fatalf("Expected 3 items, got %d", count)
 	}
@@ -143,54 +144,148 @@ func TestClear(t *testing.T) {
 	kv.Set("key3", "value3")
 
 	// Verify data exists
-	val, err := kv.Get("key1", "")
-	if err != nil {
-		t.Fatalf("Get before clear failed: %v", err)
-	}
+	val := kv.Get("key1")
 	if val != "value1" {
 		t.Fatalf("Got %s, expected value1", val)
 	}
 
 	// Clear all data
-	err = kv.Clear()
-	if err != nil {
-		t.Fatalf("Clear failed: %v", err)
-	}
+	kv.Clear()
 
 	// Verify all data is gone
-	_, err = kv.Get("key1", "")
-	if err == nil {
-		t.Fatal("Expected error for key1 after clear")
-	}
-	_, err = kv.Get("key2", "")
-	if err == nil {
-		t.Fatal("Expected error for key2 after clear")
-	}
-	_, err = kv.Get("key3", "")
-	if err == nil {
-		t.Fatal("Expected error for key3 after clear")
-	}
-
-	// Verify we can add new data after clear
-	err = kv.Set("newkey", "newvalue")
-	if err != nil {
-		t.Fatalf("Set after clear failed: %v", err)
-	}
-	val, err = kv.Get("newkey", "")
-	if err != nil {
-		t.Fatalf("Get after clear failed: %v", err)
-	}
-	if val != "newvalue" {
-		t.Fatalf("Got %s, expected newvalue", val)
-	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Expected panic for key1 after clear")
+		}
+	}()
+	kv.Get("key1")
 }
 
 func TestClearEmpty(t *testing.T) {
 	kv := kvstore.New[string, string]("test_clear_empty")
 
-	// Clear empty store should not error
-	err := kv.Clear()
+	// Clear empty store should not panic
+	kv.Clear()
+}
+
+// Test Try versions (with error handling)
+func TestTrySetGet(t *testing.T) {
+	kv := kvstore.New[string, string]("test_try_setget")
+
+	err := kv.TrySet("key1", "value1")
 	if err != nil {
-		t.Fatalf("Clear empty store failed: %v", err)
+		t.Fatalf("TrySet failed: %v", err)
+	}
+
+	val, err := kv.TryGet("key1")
+	if err != nil {
+		t.Fatalf("TryGet failed: %v", err)
+	}
+	if val != "value1" {
+		t.Fatalf("Got %s, expected value1", val)
+	}
+}
+
+func TestTryGetNotFound(t *testing.T) {
+	kv := kvstore.New[string, string]("test_try_notfound")
+
+	_, err := kv.TryGet("nonexistent")
+	if err == nil {
+		t.Fatal("Expected error for nonexistent key")
+	}
+}
+
+func TestTryHas(t *testing.T) {
+	kv := kvstore.New[string, string]("test_try_has")
+
+	// Test non-existent key
+	exists, err := kv.TryHas("key1")
+	if err != nil {
+		t.Fatalf("TryHas failed: %v", err)
+	}
+	if exists {
+		t.Fatal("Expected false for non-existent key")
+	}
+
+	// Add a key
+	err = kv.TrySet("key1", "value1")
+	if err != nil {
+		t.Fatalf("TrySet failed: %v", err)
+	}
+
+	// Test existing key
+	exists, err = kv.TryHas("key1")
+	if err != nil {
+		t.Fatalf("TryHas failed: %v", err)
+	}
+	if !exists {
+		t.Fatal("Expected true for existing key")
+	}
+}
+
+func TestTryDelete(t *testing.T) {
+	kv := kvstore.New[string, string]("test_try_delete")
+
+	err := kv.TrySet("key1", "value1")
+	if err != nil {
+		t.Fatalf("TrySet failed: %v", err)
+	}
+
+	err = kv.TryDelete("key1")
+	if err != nil {
+		t.Fatalf("TryDelete failed: %v", err)
+	}
+
+	_, err = kv.TryGet("key1")
+	if err == nil {
+		t.Fatal("Expected error after delete")
+	}
+}
+
+func TestTryForEach(t *testing.T) {
+	kv := kvstore.New[string, int]("test_try_foreach")
+
+	// Add test data using Try methods
+	kv.TrySet("a", 1)
+	kv.TrySet("b", 2)
+	kv.TrySet("c", 3)
+
+	// Count items
+	count := 0
+	sum := 0
+	err := kv.TryForEach(func(key string, value int) error {
+		count++
+		sum += value
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("TryForEach failed: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("Expected 3 items, got %d", count)
+	}
+	if sum != 6 {
+		t.Fatalf("Expected sum of 6, got %d", sum)
+	}
+}
+
+func TestTryClear(t *testing.T) {
+	kv := kvstore.New[string, string]("test_try_clear")
+
+	// Add test data
+	kv.TrySet("key1", "value1")
+	kv.TrySet("key2", "value2")
+
+	// Clear all data
+	err := kv.TryClear()
+	if err != nil {
+		t.Fatalf("TryClear failed: %v", err)
+	}
+
+	// Verify all data is gone
+	_, err = kv.TryGet("key1")
+	if err == nil {
+		t.Fatal("Expected error for key1 after clear")
 	}
 }

@@ -173,7 +173,7 @@ func New[T1 any, T2 any](name string) *KV[T1, T2] {
 	return store
 }
 
-func (s *KV[T1, T2]) Set(key T1, value T2) error {
+func (s *KV[T1, T2]) TrySet(key T1, value T2) error {
 	// Get old value for watch events
 	oldValue, hadOldValue := s.getOldValue(key)
 
@@ -201,7 +201,7 @@ func (s *KV[T1, T2]) Set(key T1, value T2) error {
 	return nil
 }
 
-func (s *KV[T1, T2]) Get(key T1, value T2) (T2, error) {
+func (s *KV[T1, T2]) TryGet(key T1) (T2, error) {
 	var v T2
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -210,7 +210,22 @@ func (s *KV[T1, T2]) Get(key T1, value T2) (T2, error) {
 	return v, err
 }
 
-func (s *KV[T1, T2]) Delete(key T1) error {
+func (s *KV[T1, T2]) TryHas(key T1) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	query := fmt.Sprintf("SELECT 1 FROM %s WHERE key = ? LIMIT 1", s.table)
+	var exists int
+	err := s.db.QueryRowContext(ctx, query, key).Scan(&exists)
+	if err == nil {
+		return true, nil
+	}
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return false, err
+}
+
+func (s *KV[T1, T2]) TryDelete(key T1) error {
 	// Get old value for watch events
 	oldValue, hadOldValue := s.getOldValue(key)
 
@@ -238,7 +253,7 @@ func (s *KV[T1, T2]) Delete(key T1) error {
 	return nil
 }
 
-func (s *KV[T1, T2]) ForEach(fn func(key T1, value T2) error) error {
+func (s *KV[T1, T2]) TryForEach(fn func(key T1, value T2)) error {
 	ctx := context.Background()
 	sql := fmt.Sprintf("SELECT key, value FROM %s", s.table)
 	rows, err := s.db.QueryContext(ctx, sql)
@@ -253,14 +268,12 @@ func (s *KV[T1, T2]) ForEach(fn func(key T1, value T2) error) error {
 		if err := rows.Scan(&k, &v); err != nil {
 			return err
 		}
-		if err := fn(k, v); err != nil {
-			return err
-		}
+		fn(k, v)
 	}
 	return rows.Err()
 }
 
-func (s *KV[T1, T2]) Clear() error {
+func (s *KV[T1, T2]) TryClear() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("DELETE FROM %s", s.table)
@@ -319,6 +332,46 @@ func (s *KV[T1, T2]) Watch(key T1) (<-chan WatchEvent[T1, T2], CancelFunc) {
 // 		close(ch)
 // 	}
 // }
+
+func (s *KV[T1, T2]) Set(key T1, value T2) {
+	if err := s.TrySet(key, value); err != nil {
+		panic(err)
+	}
+}
+
+func (s *KV[T1, T2]) Get(key T1) T2 {
+	val, err := s.TryGet(key)
+	if err != nil {
+		panic(err)
+	}
+	return val
+}
+
+func (s *KV[T1, T2]) Has(key T1) bool {
+	exists, err := s.TryHas(key)
+	if err != nil {
+		panic(err)
+	}
+	return exists
+}
+
+func (s *KV[T1, T2]) Delete(key T1) {
+	if err := s.TryDelete(key); err != nil {
+		panic(err)
+	}
+}
+
+func (s *KV[T1, T2]) ForEach(fn func(key T1, value T2)) {
+	if err := s.TryForEach(fn); err != nil {
+		panic(err)
+	}
+}
+
+func (s *KV[T1, T2]) Clear() {
+	if err := s.TryClear(); err != nil {
+		panic(err)
+	}
+}
 
 // StopAllWatchers stops all active watchers
 func (s *KV[T1, T2]) StopAllWatchers() {
