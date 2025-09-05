@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,9 +19,42 @@ var (
 )
 
 type KV[T1 any, T2 any] struct {
-	db    *sql.DB
-	table string
+	db       *sql.DB
+	table    string
+	watchers *watcherRegistry[T1, T2]
 }
+
+type WatchEvent[T1 any, T2 any] struct {
+	Type     WatchEventType
+	Key      T1
+	Value    T2
+	OldValue T2
+}
+
+type WatchEventType int
+
+const (
+	WatchEventSet WatchEventType = iota
+	WatchEventDelete
+)
+
+type watcher[T1 any, T2 any] struct {
+	id       string
+	key      *T1
+	prefix   *string
+	ch       chan WatchEvent[T1, T2]
+	stopCh   chan struct{}
+	stopped  bool
+	stopOnce sync.Once
+}
+
+type watcherRegistry[T1 any, T2 any] struct {
+	mu       sync.RWMutex
+	watchers map[string]*watcher[T1, T2]
+	store    *KV[T1, T2]
+}
+
+type CancelFunc func()
 
 func getSharedDB() (*sql.DB, error) {
 	var err error
@@ -92,6 +126,11 @@ func NewAt[T1 any, T2 any](dbPath string, name string) (*KV[T1, T2], error) {
 		table: name,
 	}
 
+	store.watchers = &watcherRegistry[T1, T2]{
+		watchers: make(map[string]*watcher[T1, T2]),
+		store:    store,
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -116,6 +155,11 @@ func New[T1 any, T2 any](name string) *KV[T1, T2] {
 		table: name,
 	}
 
+	store.watchers = &watcherRegistry[T1, T2]{
+		watchers: make(map[string]*watcher[T1, T2]),
+		store:    store,
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -130,6 +174,9 @@ func New[T1 any, T2 any](name string) *KV[T1, T2] {
 }
 
 func (s *KV[T1, T2]) Set(key T1, value T2) error {
+	// Get old value for watch events
+	oldValue, hadOldValue := s.getOldValue(key)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("INSERT OR REPLACE INTO %s (key, value) VALUES (?, ?)", s.table)
@@ -137,6 +184,20 @@ func (s *KV[T1, T2]) Set(key T1, value T2) error {
 	if err != nil {
 		return err
 	}
+
+	// Notify watchers
+	if s.watchers != nil {
+		event := WatchEvent[T1, T2]{
+			Type:  WatchEventSet,
+			Key:   key,
+			Value: value,
+		}
+		if hadOldValue {
+			event.OldValue = oldValue
+		}
+		s.watchers.notify(key, event)
+	}
+
 	return nil
 }
 
@@ -150,11 +211,31 @@ func (s *KV[T1, T2]) Get(key T1, value T2) (T2, error) {
 }
 
 func (s *KV[T1, T2]) Delete(key T1) error {
+	// Get old value for watch events
+	oldValue, hadOldValue := s.getOldValue(key)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE key = ?", s.table)
-	_, err := s.db.ExecContext(ctx, sql, key)
-	return err
+	result, err := s.db.ExecContext(ctx, sql, key)
+	if err != nil {
+		return err
+	}
+
+	// Only notify if something was actually deleted
+	if s.watchers != nil && hadOldValue {
+		rowsAffected, _ := result.RowsAffected()
+		if rowsAffected > 0 {
+			event := WatchEvent[T1, T2]{
+				Type:     WatchEventDelete,
+				Key:      key,
+				OldValue: oldValue,
+			}
+			s.watchers.notify(key, event)
+		}
+	}
+
+	return nil
 }
 
 func (s *KV[T1, T2]) ForEach(fn func(key T1, value T2) error) error {
@@ -184,5 +265,128 @@ func (s *KV[T1, T2]) Clear() error {
 	defer cancel()
 	sql := fmt.Sprintf("DELETE FROM %s", s.table)
 	_, err := s.db.ExecContext(ctx, sql)
+
+	// Clear notifies all watchers with delete events
+	// For simplicity, we're not sending individual delete events for each key
+
 	return err
+}
+
+// Watch monitors changes to a specific key
+func (s *KV[T1, T2]) Watch(key T1) (<-chan WatchEvent[T1, T2], CancelFunc) {
+	ch := make(chan WatchEvent[T1, T2], 10)
+
+	w := &watcher[T1, T2]{
+		id:     fmt.Sprintf("%v_%d", key, time.Now().UnixNano()),
+		key:    &key,
+		ch:     ch,
+		stopCh: make(chan struct{}),
+	}
+
+	s.watchers.mu.Lock()
+	s.watchers.watchers[w.id] = w
+	s.watchers.mu.Unlock()
+
+	return ch, func() {
+		w.stop()
+		s.watchers.mu.Lock()
+		delete(s.watchers.watchers, w.id)
+		s.watchers.mu.Unlock()
+		close(ch)
+	}
+}
+
+// // WatchPrefix monitors changes to keys with a specific prefix
+// func (s *KV[T1, T2]) WatchPrefix(prefix string) (<-chan WatchEvent[T1, T2], CancelFunc) {
+// 	ch := make(chan WatchEvent[T1, T2], 10)
+//
+// 	w := &watcher[T1, T2]{
+// 		id:     fmt.Sprintf("prefix_%s_%d", prefix, time.Now().UnixNano()),
+// 		prefix: &prefix,
+// 		ch:     ch,
+// 		stopCh: make(chan struct{}),
+// 	}
+//
+// 	s.watchers.mu.Lock()
+// 	s.watchers.watchers[w.id] = w
+// 	s.watchers.mu.Unlock()
+//
+// 	return ch, func() {
+// 		w.stop()
+// 		s.watchers.mu.Lock()
+// 		delete(s.watchers.watchers, w.id)
+// 		s.watchers.mu.Unlock()
+// 		close(ch)
+// 	}
+// }
+
+// StopAllWatchers stops all active watchers
+func (s *KV[T1, T2]) StopAllWatchers() {
+	if s.watchers == nil {
+		return
+	}
+
+	s.watchers.mu.Lock()
+	defer s.watchers.mu.Unlock()
+
+	for _, w := range s.watchers.watchers {
+		w.stop()
+	}
+	s.watchers.watchers = make(map[string]*watcher[T1, T2])
+}
+
+// Helper method to get old value before modification
+func (s *KV[T1, T2]) getOldValue(key T1) (T2, bool) {
+	var oldValue T2
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	sql := fmt.Sprintf("SELECT value FROM %s WHERE key = ?", s.table)
+	err := s.db.QueryRowContext(ctx, sql, key).Scan(&oldValue)
+
+	return oldValue, err == nil
+}
+
+// stop safely stops a watcher
+func (w *watcher[T1, T2]) stop() {
+	w.stopOnce.Do(func() {
+		w.stopped = true
+		close(w.stopCh)
+	})
+}
+
+// notify sends events to matching watchers
+func (r *watcherRegistry[T1, T2]) notify(key T1, event WatchEvent[T1, T2]) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	keyStr := fmt.Sprintf("%v", key)
+
+	for _, w := range r.watchers {
+		if w.stopped {
+			continue
+		}
+
+		// Check if this watcher matches
+		matches := false
+		if w.key != nil {
+			// Exact key match
+			matches = fmt.Sprintf("%v", *w.key) == keyStr
+		} else if w.prefix != nil {
+			// Prefix match
+			matches = strings.HasPrefix(keyStr, *w.prefix)
+		}
+
+		if matches {
+			select {
+			case w.ch <- event:
+				// Event sent successfully
+			case <-w.stopCh:
+				// Watcher stopped
+
+				// case <-time.After(100 * time.Millisecond):
+				// 	// Don't block if channel is full
+			}
+		}
+	}
 }

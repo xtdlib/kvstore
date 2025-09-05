@@ -27,10 +27,10 @@ func main() {
 
 ## API
 
-- `New[K, V](name)`
+- `New[K, V]`
 - `Set(K, V)`
 - `Get(K, V)`
 - `Delete(K)`
 - `Clear()`
-- `ForEach(func(K, V))`
+- `ForEach(func(K, V) error)`
 
