@@ -3,6 +3,7 @@ package kvstore
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -173,16 +174,16 @@ func New[T1 any, T2 any](name string) *KV[T1, T2] {
 	return store
 }
 
-func (s *KV[T1, T2]) TrySet(key T1, value T2) error {
+func (s *KV[T1, T2]) TrySet(key T1, value T2) (out T2, err error) {
 	// Get old value for watch events
 	oldValue, hadOldValue := s.getOldValue(key)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("INSERT OR REPLACE INTO %s (key, value) VALUES (?, ?)", s.table)
-	_, err := s.db.ExecContext(ctx, sql, key, value)
+	_, err = s.db.ExecContext(ctx, sql, key, value)
 	if err != nil {
-		return err
+		return out, err
 	}
 
 	// Notify watchers
@@ -198,7 +199,7 @@ func (s *KV[T1, T2]) TrySet(key T1, value T2) error {
 		s.watchers.notify(key, event)
 	}
 
-	return nil
+	return out, nil
 }
 
 func (s *KV[T1, T2]) TryGet(key T1) (T2, error) {
@@ -333,10 +334,12 @@ func (s *KV[T1, T2]) Watch(key T1) (<-chan WatchEvent[T1, T2], CancelFunc) {
 // 	}
 // }
 
-func (s *KV[T1, T2]) Set(key T1, value T2) {
-	if err := s.TrySet(key, value); err != nil {
+func (s *KV[T1, T2]) Set(key T1, value T2) T2 {
+	out, err := s.TrySet(key, value)
+	if err != nil {
 		panic(err)
 	}
+	return out
 }
 
 func (s *KV[T1, T2]) Get(key T1) T2 {
@@ -349,8 +352,10 @@ func (s *KV[T1, T2]) Get(key T1) T2 {
 
 func (s *KV[T1, T2]) GetOr(key T1, defaultValue T2) T2 {
 	val, err := s.TryGet(key)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		return defaultValue
+	} else if err != nil {
+		panic(err)
 	}
 	return val
 }

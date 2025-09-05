@@ -18,7 +18,7 @@ func TestSetGet(t *testing.T) {
 	kv := kvstore.New[string, string]("test_setget")
 
 	kv.Set("key1", "value1")
-	
+
 	val := kv.Get("key1")
 	if val != "value1" {
 		t.Fatalf("Got %s, expected value1", val)
@@ -45,7 +45,7 @@ func TestGetNotFound(t *testing.T) {
 			t.Fatal("Expected panic for nonexistent key")
 		}
 	}()
-	
+
 	kv.Get("nonexistent")
 }
 
@@ -53,7 +53,7 @@ func TestIntKeys(t *testing.T) {
 	kv := kvstore.New[int, string]("test_intkeys")
 
 	kv.Set(42, "answer")
-	
+
 	val := kv.Get(42)
 	if val != "answer" {
 		t.Fatalf("Got %s, expected answer", val)
@@ -99,7 +99,7 @@ func TestDelete(t *testing.T) {
 			t.Fatal("Expected panic after delete")
 		}
 	}()
-	
+
 	kv.Get("key1")
 }
 
@@ -225,7 +225,7 @@ func TestTryHas(t *testing.T) {
 func TestTryDelete(t *testing.T) {
 	kv := kvstore.New[string, string]("test_try_delete")
 
-	err := kv.TrySet("key1", "value1")
+	_, err := kv.TrySet("key1", "value1")
 	if err != nil {
 		t.Fatalf("TrySet failed: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestGetOr(t *testing.T) {
 
 	// Test with different types (int)
 	kvInt := kvstore.New[string, int]("test_getor_int")
-	
+
 	// Non-existent key returns default
 	intVal := kvInt.GetOr("missing", 42)
 	if intVal != 42 {
@@ -323,3 +323,4 @@ func TestGetOr(t *testing.T) {
 		t.Fatalf("Got %d, expected 100", intVal)
 	}
 }
+
