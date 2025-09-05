@@ -8,7 +8,10 @@ import (
 
 func main() {
 	// Create store
-	store := kvstore.New[string, string]("watchdemo")
+	store, err := kvstore.NewAt[string, string]("./xxx.db", "watchdemo")
+	if err != nil {
+		panic(err)
+	}
 
 	// Start watching key "message" - returns channel and cancel function
 	events, cancel := store.Watch("message")
