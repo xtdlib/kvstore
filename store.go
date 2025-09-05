@@ -347,6 +347,14 @@ func (s *KV[T1, T2]) Get(key T1) T2 {
 	return val
 }
 
+func (s *KV[T1, T2]) GetOr(key T1, defaultValue T2) T2 {
+	val, err := s.TryGet(key)
+	if err != nil {
+		return defaultValue
+	}
+	return val
+}
+
 func (s *KV[T1, T2]) Has(key T1) bool {
 	exists, err := s.TryHas(key)
 	if err != nil {

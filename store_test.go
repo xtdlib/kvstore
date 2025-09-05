@@ -121,10 +121,9 @@ func TestForEach(t *testing.T) {
 	// Count items
 	count := 0
 	sum := 0
-	kv.ForEach(func(key string, value int) error {
+	kv.ForEach(func(key string, value int) {
 		count++
 		sum += value
-		return nil
 	})
 
 	if count != 3 {
@@ -253,10 +252,9 @@ func TestTryForEach(t *testing.T) {
 	// Count items
 	count := 0
 	sum := 0
-	err := kv.TryForEach(func(key string, value int) error {
+	err := kv.TryForEach(func(key string, value int) {
 		count++
 		sum += value
-		return nil
 	})
 
 	if err != nil {
@@ -287,5 +285,41 @@ func TestTryClear(t *testing.T) {
 	_, err = kv.TryGet("key1")
 	if err == nil {
 		t.Fatal("Expected error for key1 after clear")
+	}
+}
+
+func TestGetOr(t *testing.T) {
+	kv := kvstore.New[string, string]("test_getor")
+
+	// Test with non-existent key - should return default value
+	defaultVal := "default_value"
+	val := kv.GetOr("nonexistent", defaultVal)
+	if val != defaultVal {
+		t.Fatalf("Got %s, expected %s", val, defaultVal)
+	}
+
+	// Add a key
+	kv.Set("key1", "actual_value")
+
+	// Test with existing key - should return actual value
+	val = kv.GetOr("key1", defaultVal)
+	if val != "actual_value" {
+		t.Fatalf("Got %s, expected actual_value", val)
+	}
+
+	// Test with different types (int)
+	kvInt := kvstore.New[string, int]("test_getor_int")
+	
+	// Non-existent key returns default
+	intVal := kvInt.GetOr("missing", 42)
+	if intVal != 42 {
+		t.Fatalf("Got %d, expected 42", intVal)
+	}
+
+	// Existing key returns actual value
+	kvInt.Set("answer", 100)
+	intVal = kvInt.GetOr("answer", 42)
+	if intVal != 100 {
+		t.Fatalf("Got %d, expected 100", intVal)
 	}
 }
