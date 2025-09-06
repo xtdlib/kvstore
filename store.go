@@ -302,6 +302,39 @@ func (s *KV[T1, T2]) TryDelete(key T1) error {
 	return nil
 }
 
+func (s *KV[T1, T2]) TryForEachReverse(fn func(key T1, value T2)) error {
+	ctx := context.Background()
+	sql := fmt.Sprintf("SELECT key, value FROM %s order by key desc", s.table)
+	rows, err := s.db.QueryContext(ctx, sql)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var k T1
+		var v T2
+		var keyStr string
+		var valueStr string
+		if err := rows.Scan(&keyStr, &valueStr); err != nil {
+			return err
+		}
+
+		// Deserialize key from JSON
+		if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+			return fmt.Errorf("failed to unmarshal key: %w", err)
+		}
+
+		// Deserialize value from JSON
+		if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
+			return fmt.Errorf("failed to unmarshal value: %w", err)
+		}
+
+		fn(k, v)
+	}
+	return rows.Err()
+}
+
 func (s *KV[T1, T2]) TryForEach(fn func(key T1, value T2)) error {
 	ctx := context.Background()
 	sql := fmt.Sprintf("SELECT key, value FROM %s order by key", s.table)
@@ -469,6 +502,13 @@ func (s *KV[T1, T2]) ForEach(fn func(key T1, value T2)) {
 		panic(err)
 	}
 }
+
+func (s *KV[T1, T2]) ForEachReverse(fn func(key T1, value T2)) {
+	if err := s.TryForEachReverse(fn); err != nil {
+		panic(err)
+	}
+}
+
 
 func (s *KV[T1, T2]) Clear() {
 	if err := s.TryClear(); err != nil {
