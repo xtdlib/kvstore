@@ -171,7 +171,7 @@ func TestClearEmpty(t *testing.T) {
 func TestTrySetGet(t *testing.T) {
 	kv := kvstore.New[string, string]("test_try_setget")
 
-	err := kv.TrySet("key1", "value1")
+	_, err := kv.TrySet("key1", "value1")
 	if err != nil {
 		t.Fatalf("TrySet failed: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestTryHas(t *testing.T) {
 	}
 
 	// Add a key
-	err = kv.TrySet("key1", "value1")
+	_, err = kv.TrySet("key1", "value1")
 	if err != nil {
 		t.Fatalf("TrySet failed: %v", err)
 	}

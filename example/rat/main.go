@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 
 	"github.com/xtdlib/kvstore"
 	"github.com/xtdlib/rat"
+	"github.com/xtdlib/try"
 )
 
 func main() {
@@ -12,18 +14,23 @@ func main() {
 
 	store.Clear()
 	store.Set(rat.Rat(1), rat.Rat(3))
-	store.Set(rat.Rat("1/3"), rat.Rat(5))
 	if !store.Get(rat.Rat(1)).Equal(3) {
-		panic("should be same")
+		panic("should be 3")
 	}
 
+	log.Println("json", string(try.E1(json.Marshal(rat.Rat("1/3")))))
+
+	store.Set(rat.Rat("1/3"), rat.Rat(5))
 	ksum := rat.Rat(0)
 	store.ForEach(func(k *rat.Rational, v *rat.Rational) {
+		log.Println(k.FractionString(), v.FractionString())
+		log.Println(k.String(), v.String())
 		ksum = ksum.Add(k)
 	})
 	ksum.SetPrecision(9)
 
 	if !ksum.Equal("4/3") {
+		log.Println("ksum:", ksum.FractionString())
 		panic("should be same")
 	} else {
 		log.Println("ksum:", ksum)

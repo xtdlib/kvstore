@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	github.com/xtdlib/kvstore v0.0.0
-	github.com/xtdlib/rat v0.0.0-20250906031202-a546a9e87cb1
+	github.com/xtdlib/rat v0.0.0-20250906071516-72ee30efa47e
 )
 
 require (

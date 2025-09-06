@@ -184,6 +184,12 @@ func (s *KV[T1, T2]) TrySet(key T1, value T2) (out T2, err error) {
 	// Get old value for watch events
 	oldValue, hadOldValue := s.getOldValue(key)
 
+	// Serialize the key to JSON
+	keyBytes, err := json.Marshal(key)
+	if err != nil {
+		return out, fmt.Errorf("failed to marshal key: %w", err)
+	}
+
 	// Serialize the value to JSON
 	valueBytes, err := json.Marshal(value)
 	if err != nil {
@@ -193,7 +199,7 @@ func (s *KV[T1, T2]) TrySet(key T1, value T2) (out T2, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("INSERT OR REPLACE INTO %s (key, value) VALUES (?, ?)", s.table)
-	_, err = s.db.ExecContext(ctx, sql, key, string(valueBytes))
+	_, err = s.db.ExecContext(ctx, sql, string(keyBytes), string(valueBytes))
 	if err != nil {
 		return out, err
 	}
@@ -217,10 +223,17 @@ func (s *KV[T1, T2]) TrySet(key T1, value T2) (out T2, err error) {
 func (s *KV[T1, T2]) TryGet(key T1) (T2, error) {
 	var v T2
 	var valueStr string
+	
+	// Serialize the key to JSON
+	keyBytes, err := json.Marshal(key)
+	if err != nil {
+		return v, fmt.Errorf("failed to marshal key: %w", err)
+	}
+	
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("SELECT value FROM %s WHERE key = ?", s.table)
-	err := s.db.QueryRowContext(ctx, sql, key).Scan(&valueStr)
+	err = s.db.QueryRowContext(ctx, sql, string(keyBytes)).Scan(&valueStr)
 	if err != nil {
 		return v, err
 	}
@@ -235,11 +248,17 @@ func (s *KV[T1, T2]) TryGet(key T1) (T2, error) {
 }
 
 func (s *KV[T1, T2]) TryHas(key T1) (bool, error) {
+	// Serialize the key to JSON
+	keyBytes, err := json.Marshal(key)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal key: %w", err)
+	}
+	
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	query := fmt.Sprintf("SELECT 1 FROM %s WHERE key = ? LIMIT 1", s.table)
 	var exists int
-	err := s.db.QueryRowContext(ctx, query, key).Scan(&exists)
+	err = s.db.QueryRowContext(ctx, query, string(keyBytes)).Scan(&exists)
 	if err == nil {
 		return true, nil
 	}
@@ -253,10 +272,16 @@ func (s *KV[T1, T2]) TryDelete(key T1) error {
 	// Get old value for watch events
 	oldValue, hadOldValue := s.getOldValue(key)
 
+	// Serialize the key to JSON
+	keyBytes, err := json.Marshal(key)
+	if err != nil {
+		return fmt.Errorf("failed to marshal key: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("DELETE FROM %s WHERE key = ?", s.table)
-	result, err := s.db.ExecContext(ctx, sql, key)
+	result, err := s.db.ExecContext(ctx, sql, string(keyBytes))
 	if err != nil {
 		return err
 	}
@@ -289,12 +314,18 @@ func (s *KV[T1, T2]) TryForEach(fn func(key T1, value T2)) error {
 	for rows.Next() {
 		var k T1
 		var v T2
+		var keyStr string
 		var valueStr string
-		if err := rows.Scan(&k, &valueStr); err != nil {
+		if err := rows.Scan(&keyStr, &valueStr); err != nil {
 			return err
 		}
 
-		// Deserialize from JSON
+		// Deserialize key from JSON
+		if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+			return fmt.Errorf("failed to unmarshal key: %w", err)
+		}
+
+		// Deserialize value from JSON
 		if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
 			return fmt.Errorf("failed to unmarshal value: %w", err)
 		}
@@ -464,11 +495,18 @@ func (s *KV[T1, T2]) StopAllWatchers() {
 func (s *KV[T1, T2]) getOldValue(key T1) (T2, bool) {
 	var oldValue T2
 	var valueStr string
+	
+	// Serialize the key to JSON
+	keyBytes, err := json.Marshal(key)
+	if err != nil {
+		return oldValue, false
+	}
+	
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	sql := fmt.Sprintf("SELECT value FROM %s WHERE key = ?", s.table)
-	err := s.db.QueryRowContext(ctx, sql, key).Scan(&valueStr)
+	err = s.db.QueryRowContext(ctx, sql, string(keyBytes)).Scan(&valueStr)
 	if err != nil {
 		return oldValue, false
 	}

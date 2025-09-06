@@ -12,6 +12,8 @@ github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/xtdlib/rat v0.0.0-20250906031202-a546a9e87cb1 h1:FrjAS9G1GhHhtp9awpA2VhPu/G30Fbi9eKkAVc1gUoM=
 github.com/xtdlib/rat v0.0.0-20250906031202-a546a9e87cb1/go.mod h1:3xhG76BS5CASmufCG6H9YjQ+DspYvdm94DWWoaFxKYQ=
+github.com/xtdlib/rat v0.0.0-20250906071516-72ee30efa47e h1:ljikvtSf3eQwy8JoviQi2161DanaIzUClFazCpOUxog=
+github.com/xtdlib/rat v0.0.0-20250906071516-72ee30efa47e/go.mod h1:3xhG76BS5CASmufCG6H9YjQ+DspYvdm94DWWoaFxKYQ=
 github.com/xtdlib/try v0.0.0-20250823064224-1656db820f45 h1:G9xO5aTe3HK9amfaOR+mS70kw7Wyjz87vZXJIVQVcYs=
 github.com/xtdlib/try v0.0.0-20250823064224-1656db820f45/go.mod h1:iq8dxQF7XVQmPFHnl5jhqoFKu48pdKquPm9ELk6poZo=
 golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b h1:DXr+pvt3nC887026GRP39Ej11UATqWDmWuS99x26cD0=
