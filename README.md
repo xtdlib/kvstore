@@ -1,6 +1,6 @@
 # kvstore
 
-generic kv store library backed by sqlite. 
+generic kv store library backed by sqlite. By default it creates db file in `$XDG_CACHE_HOME/$0/$0.db`
 
 ```
 package main
@@ -28,7 +28,10 @@ func main() {
 
 - `New[K, V]`
 - `Set(K, V)`
-- `Get(K, V)`
+- `SetIf(K, V)`
+- `Get(K)`
+- `GetOr(K, V)`
+- `Has(K)` bool
 - `Delete(K)`
 - `Clear()`
 - `ForEach(func(K, V))`
