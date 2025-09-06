@@ -1,6 +1,6 @@
 # kvstore
 
-generic kv store library backed by sqlite. By default it creates db file in `$XDG_CACHE_HOME/$0/$0.db`
+Simple kv store backed by sqlite. By default it creates db file in `$XDG_CACHE_HOME/$0/$0.db`
 
 ```
 package main
