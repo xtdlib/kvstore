@@ -1,7 +1,6 @@
 package kvstore
 
 import (
-	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -30,7 +29,7 @@ type KV[T1 comparable, T2 comparable] struct {
 	watchers *watcherRegistry[T1, T2]
 }
 
-type WatchEvent[T1 any, T2 any] struct {
+type WatchEvent[T1 comparable, T2 comparable] struct {
 	Type     WatchEventType
 	Key      T1
 	Value    T2
@@ -44,7 +43,7 @@ const (
 	WatchEventDelete
 )
 
-type watcher[T1 any, T2 any] struct {
+type watcher[T1 comparable, T2 comparable] struct {
 	id       string
 	key      *T1
 	prefix   *string
@@ -54,7 +53,7 @@ type watcher[T1 any, T2 any] struct {
 	stopOnce sync.Once
 }
 
-type watcherRegistry[T1 any, T2 any] struct {
+type watcherRegistry[T1 comparable, T2 comparable] struct {
 	mu       sync.RWMutex
 	watchers map[string]*watcher[T1, T2]
 	store    *KV[T1, T2]
@@ -122,7 +121,7 @@ func getSharedDB() (*sql.DB, error) {
 	return sharedDB, err
 }
 
-func NewAt[T1 any, T2 any](dbPath string, name string) (*KV[T1, T2], error) {
+func NewAt[T1 comparable, T2 comparable](dbPath string, name string) (*KV[T1, T2], error) {
 	connStr := fmt.Sprintf("%s?_busy_timeout=10000&_journal=WAL&_sync=NORMAL", dbPath)
 	db, err := sql.Open("sqlite", connStr)
 	if err != nil {
@@ -152,7 +151,7 @@ func NewAt[T1 any, T2 any](dbPath string, name string) (*KV[T1, T2], error) {
 	return store, nil
 }
 
-func New[T1 any, T2 any](name string) *KV[T1, T2] {
+func New[T1 comparable, T2 comparable](name string) *KV[T1, T2] {
 	db, err := getSharedDB()
 	if err != nil {
 		panic(err)
