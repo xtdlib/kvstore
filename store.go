@@ -1,6 +1,7 @@
 package kvstore
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -23,7 +24,7 @@ var (
 	dbOnce   sync.Once
 )
 
-type KV[T1 any, T2 any] struct {
+type KV[T1 comparable, T2 comparable] struct {
 	db       *sql.DB
 	table    string
 	watchers *watcherRegistry[T1, T2]
@@ -224,13 +225,13 @@ func (s *KV[T1, T2]) TryGet(key T1) (T2, error) {
 	if err != nil {
 		return v, err
 	}
-	
+
 	// Deserialize from JSON
 	err = json.Unmarshal([]byte(valueStr), &v)
 	if err != nil {
 		return v, fmt.Errorf("failed to unmarshal value: %w", err)
 	}
-	
+
 	return v, nil
 }
 
@@ -293,12 +294,12 @@ func (s *KV[T1, T2]) TryForEach(fn func(key T1, value T2)) error {
 		if err := rows.Scan(&k, &valueStr); err != nil {
 			return err
 		}
-		
+
 		// Deserialize from JSON
 		if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
 			return fmt.Errorf("failed to unmarshal value: %w", err)
 		}
-		
+
 		fn(k, v)
 	}
 	return rows.Err()
@@ -364,6 +365,14 @@ func (s *KV[T1, T2]) Watch(key T1) (<-chan WatchEvent[T1, T2], CancelFunc) {
 // 	}
 // }
 
+// func (s *KV[T1, T2]) SetE1(key T1, value T2) T2 {
+// 	out, err := s.TrySet(key, value)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	return out
+// }
+
 func (s *KV[T1, T2]) Set(key T1, value T2) T2 {
 	out, err := s.TrySet(key, value)
 	if err != nil {
@@ -371,6 +380,27 @@ func (s *KV[T1, T2]) Set(key T1, value T2) T2 {
 	}
 	return out
 }
+
+func (s *KV[T1, T2]) SetIf(key T1, value T2) T2 {
+	var zero T2
+	if value != zero {
+		out, err := s.TrySet(key, value)
+		_ = out
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	return value
+}
+
+// func (s *KV[T1, T2]) Set(key T1, value T2) T2 {
+// 	out, err := s.TrySet(key, value)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	return out
+// }
 
 func (s *KV[T1, T2]) Get(key T1) T2 {
 	val, err := s.TryGet(key)
@@ -443,7 +473,7 @@ func (s *KV[T1, T2]) getOldValue(key T1) (T2, bool) {
 	if err != nil {
 		return oldValue, false
 	}
-	
+
 	// Deserialize from JSON
 	err = json.Unmarshal([]byte(valueStr), &oldValue)
 	if err != nil {
