@@ -3,8 +3,10 @@ package kvstore
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +15,8 @@ import (
 
 	_ "modernc.org/sqlite"
 )
+
+var DRIVER = "sqlite"
 
 var (
 	sharedDB *sql.DB
@@ -85,8 +89,10 @@ func getSharedDB() (*sql.DB, error) {
 		// Open the shared database with query parameters for better concurrency
 		dbPath := filepath.Join(dbDir, execName+".db")
 		// Add busy_timeout and other parameters directly in the connection string
-		connStr := fmt.Sprintf("%s?_busy_timeout=10000&_journal=WAL&_sync=NORMAL", dbPath)
-		sharedDB, err = sql.Open("sqlite", connStr)
+		// connStr := fmt.Sprintf("file:%s?_timefmt=rfc3339", dbPath)
+		connStr := fmt.Sprintf("file:%s", dbPath)
+		log.Println(connStr)
+		sharedDB, err = sql.Open(DRIVER, connStr)
 		if err != nil {
 			return
 		}
@@ -136,7 +142,7 @@ func NewAt[T1 any, T2 any](dbPath string, name string) (*KV[T1, T2], error) {
 	defer cancel()
 
 	// Create table with sanitized name
-	createSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (key TEXT PRIMARY KEY, value TEXT)", store.table)
+	createSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (key PRIMARY KEY, value)", store.table)
 	_, err = store.db.ExecContext(ctx, createSQL)
 	if err != nil {
 		return nil, err
@@ -165,7 +171,7 @@ func New[T1 any, T2 any](name string) *KV[T1, T2] {
 	defer cancel()
 
 	// Create table with sanitized name
-	createSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (key TEXT PRIMARY KEY, value TEXT)", store.table)
+	createSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (key PRIMARY KEY, value)", store.table)
 	_, err = store.db.ExecContext(ctx, createSQL)
 	if err != nil {
 		panic(err)
@@ -178,10 +184,16 @@ func (s *KV[T1, T2]) TrySet(key T1, value T2) (out T2, err error) {
 	// Get old value for watch events
 	oldValue, hadOldValue := s.getOldValue(key)
 
+	// Serialize the value to JSON
+	valueBytes, err := json.Marshal(value)
+	if err != nil {
+		return out, fmt.Errorf("failed to marshal value: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("INSERT OR REPLACE INTO %s (key, value) VALUES (?, ?)", s.table)
-	_, err = s.db.ExecContext(ctx, sql, key, value)
+	_, err = s.db.ExecContext(ctx, sql, key, string(valueBytes))
 	if err != nil {
 		return out, err
 	}
@@ -204,11 +216,22 @@ func (s *KV[T1, T2]) TrySet(key T1, value T2) (out T2, err error) {
 
 func (s *KV[T1, T2]) TryGet(key T1) (T2, error) {
 	var v T2
+	var valueStr string
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("SELECT value FROM %s WHERE key = ?", s.table)
-	err := s.db.QueryRowContext(ctx, sql, key).Scan(&v)
-	return v, err
+	err := s.db.QueryRowContext(ctx, sql, key).Scan(&valueStr)
+	if err != nil {
+		return v, err
+	}
+	
+	// Deserialize from JSON
+	err = json.Unmarshal([]byte(valueStr), &v)
+	if err != nil {
+		return v, fmt.Errorf("failed to unmarshal value: %w", err)
+	}
+	
+	return v, nil
 }
 
 func (s *KV[T1, T2]) TryHas(key T1) (bool, error) {
@@ -266,9 +289,16 @@ func (s *KV[T1, T2]) TryForEach(fn func(key T1, value T2)) error {
 	for rows.Next() {
 		var k T1
 		var v T2
-		if err := rows.Scan(&k, &v); err != nil {
+		var valueStr string
+		if err := rows.Scan(&k, &valueStr); err != nil {
 			return err
 		}
+		
+		// Deserialize from JSON
+		if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
+			return fmt.Errorf("failed to unmarshal value: %w", err)
+		}
+		
 		fn(k, v)
 	}
 	return rows.Err()
@@ -404,13 +434,23 @@ func (s *KV[T1, T2]) StopAllWatchers() {
 // Helper method to get old value before modification
 func (s *KV[T1, T2]) getOldValue(key T1) (T2, bool) {
 	var oldValue T2
+	var valueStr string
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	sql := fmt.Sprintf("SELECT value FROM %s WHERE key = ?", s.table)
-	err := s.db.QueryRowContext(ctx, sql, key).Scan(&oldValue)
+	err := s.db.QueryRowContext(ctx, sql, key).Scan(&valueStr)
+	if err != nil {
+		return oldValue, false
+	}
+	
+	// Deserialize from JSON
+	err = json.Unmarshal([]byte(valueStr), &oldValue)
+	if err != nil {
+		return oldValue, false
+	}
 
-	return oldValue, err == nil
+	return oldValue, true
 }
 
 // stop safely stops a watcher
