@@ -304,7 +304,7 @@ func (s *KV[T1, T2]) TryDelete(key T1) error {
 
 func (s *KV[T1, T2]) TryForEach(fn func(key T1, value T2)) error {
 	ctx := context.Background()
-	sql := fmt.Sprintf("SELECT key, value FROM %s", s.table)
+	sql := fmt.Sprintf("SELECT key, value FROM %s order by key", s.table)
 	rows, err := s.db.QueryContext(ctx, sql)
 	if err != nil {
 		return err
