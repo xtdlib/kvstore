@@ -1,5 +1,7 @@
 package kvstore
 
+import "errors"
+
 // Example of using transactions with the KV store
 //
 // Transactions ensure that multiple operations happen atomically:
@@ -13,7 +15,7 @@ package kvstore
 
 func ExampleTransaction() {
 	store := New[string, int]("mystore")
-	
+
 	// Simple transaction - all these happen together
 	store.Transaction(func(tx *Tx[string, int]) error {
 		tx.Set("apples", 5)
@@ -21,26 +23,27 @@ func ExampleTransaction() {
 		tx.Set("total", 8)
 		return nil // Success - all saved
 	})
-	
+
 	// Bank transfer example - atomic money transfer
 	store.Transaction(func(tx *Tx[string, int]) error {
 		// Read current balances
 		aliceBalance, _ := tx.Get("alice_balance")
 		bobBalance, _ := tx.Get("bob_balance")
-		
+
 		// Transfer 50 from Alice to Bob
 		amount := 50
-		
+
 		// Update both balances
-		tx.Set("alice_balance", aliceBalance - amount)
-		tx.Set("bob_balance", bobBalance + amount)
-		
+		tx.Set("alice_balance", aliceBalance-amount)
+		tx.Set("bob_balance", bobBalance+amount)
+
 		return nil // Both changes saved together
 	})
-	
+
 	// If error is returned, nothing is saved
 	store.Transaction(func(tx *Tx[string, int]) error {
-		tx.Set("temp", 999) // This won't be saved
+		tx.Set("temp", 999)         // This won't be saved
 		return errors.New("cancel") // Rollback everything
 	})
 }
+
