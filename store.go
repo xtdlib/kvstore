@@ -180,20 +180,20 @@ func New[T1 comparable, T2 comparable](name string) *KV[T1, T2] {
 	return store
 }
 
-func (s *KV[T1, T2]) TrySet(key T1, value T2) (out T2, err error) {
+func (s *KV[T1, T2]) TrySet(key T1, value T2) (T2, error) {
 	// Get old value for watch events
 	oldValue, hadOldValue := s.getOldValue(key)
 
 	// Serialize the key to JSON
 	keyBytes, err := json.Marshal(key)
 	if err != nil {
-		return out, fmt.Errorf("failed to marshal key: %w", err)
+		return value, fmt.Errorf("failed to marshal key: %w", err)
 	}
 
 	// Serialize the value to JSON
 	valueBytes, err := json.Marshal(value)
 	if err != nil {
-		return out, fmt.Errorf("failed to marshal value: %w", err)
+		return value, fmt.Errorf("failed to marshal value: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -201,7 +201,7 @@ func (s *KV[T1, T2]) TrySet(key T1, value T2) (out T2, err error) {
 	sql := fmt.Sprintf("INSERT OR REPLACE INTO %s (key, value) VALUES (?, ?)", s.table)
 	_, err = s.db.ExecContext(ctx, sql, string(keyBytes), string(valueBytes))
 	if err != nil {
-		return out, err
+		return value, err
 	}
 
 	// Notify watchers
@@ -217,7 +217,7 @@ func (s *KV[T1, T2]) TrySet(key T1, value T2) (out T2, err error) {
 		s.watchers.notify(key, event)
 	}
 
-	return out, nil
+	return value, nil
 }
 
 func (s *KV[T1, T2]) TryGet(key T1) (T2, error) {
