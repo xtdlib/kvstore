@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
 
-var DRIVER = "sqlite"
+var DRIVER = "sqlite3"
 
 var (
 	sharedDB *sql.DB
@@ -223,13 +223,13 @@ func (s *KV[T1, T2]) TrySet(key T1, value T2) (T2, error) {
 func (s *KV[T1, T2]) TryGet(key T1) (T2, error) {
 	var v T2
 	var valueStr string
-	
+
 	// Serialize the key to JSON
 	keyBytes, err := json.Marshal(key)
 	if err != nil {
 		return v, fmt.Errorf("failed to marshal key: %w", err)
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	sql := fmt.Sprintf("SELECT value FROM %s WHERE key = ?", s.table)
@@ -253,7 +253,7 @@ func (s *KV[T1, T2]) TryHas(key T1) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to marshal key: %w", err)
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	query := fmt.Sprintf("SELECT 1 FROM %s WHERE key = ? LIMIT 1", s.table)
@@ -509,7 +509,6 @@ func (s *KV[T1, T2]) ForEachReverse(fn func(key T1, value T2)) {
 	}
 }
 
-
 func (s *KV[T1, T2]) Clear() {
 	if err := s.TryClear(); err != nil {
 		panic(err)
@@ -535,13 +534,13 @@ func (s *KV[T1, T2]) StopAllWatchers() {
 func (s *KV[T1, T2]) getOldValue(key T1) (T2, bool) {
 	var oldValue T2
 	var valueStr string
-	
+
 	// Serialize the key to JSON
 	keyBytes, err := json.Marshal(key)
 	if err != nil {
 		return oldValue, false
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
