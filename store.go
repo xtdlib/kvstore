@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
 
+// modernc.org/sqlite constanly returns "database is locked" errors under high concurrency
 var DRIVER = "sqlite3"
 
 var (
@@ -80,7 +80,7 @@ func getSharedDB() (*sql.DB, error) {
 
 		// Create directory for this executable
 		execName := filepath.Base(os.Args[0])
-		dbDir := filepath.Join(cacheDir, execName)
+		dbDir := filepath.Join(cacheDir, "kvstore")
 		if mkdirErr := os.MkdirAll(dbDir, 0755); mkdirErr != nil {
 			err = mkdirErr
 			return
@@ -91,7 +91,6 @@ func getSharedDB() (*sql.DB, error) {
 		// Add busy_timeout and other parameters directly in the connection string
 		// connStr := fmt.Sprintf("file:%s?_timefmt=rfc3339", dbPath)
 		connStr := fmt.Sprintf("file:%s", dbPath)
-		log.Println(connStr)
 		sharedDB, err = sql.Open(DRIVER, connStr)
 		if err != nil {
 			return
