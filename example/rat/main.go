@@ -23,6 +23,10 @@ func main() {
 	store.Set(rat.Rat("1/3"), rat.Rat(5))
 	ksum := rat.Rat(0)
 
+	for k, _ := range store.All {
+		ksum = ksum.Add(k)
+	}
+
 	if !ksum.Equal("4/3") {
 		log.Println("ksum:", ksum.FractionString())
 		panic("should be same")
