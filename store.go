@@ -122,7 +122,7 @@ func getSharedDB() (*sql.DB, error) {
 
 func NewAt[T1 comparable, T2 comparable](dbPath string, name string) (*KV[T1, T2], error) {
 	connStr := fmt.Sprintf("%s?_busy_timeout=10000&_journal=WAL&_sync=NORMAL", dbPath)
-	db, err := sql.Open("sqlite", connStr)
+	db, err := sql.Open(DRIVER, connStr)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +443,17 @@ func (s *KV[T1, T2]) Set(key T1, value T2) T2 {
 	return out
 }
 
-func (s *KV[T1, T2]) SetIf(key T1, value T2) T2 {
+// SET if Not eXists
+func (s *KV[T1, T2]) SetNX(key T1, value T2) T2 {
+	if s.Has(key) {
+		return s.Get(key)
+	}
+
+	return s.Set(key, value)
+}
+
+// Set if Empty or Zero
+func (s *KV[T1, T2]) SetEZ(key T1, value T2) T2 {
 	var zero T2
 	if value != zero {
 		out, err := s.TrySet(key, value)
@@ -511,6 +521,142 @@ func (s *KV[T1, T2]) ForEachReverse(fn func(key T1, value T2)) {
 func (s *KV[T1, T2]) Clear() {
 	if err := s.TryClear(); err != nil {
 		panic(err)
+	}
+}
+
+// All is an iterator over all elements starting from the head of l.
+func (s *KV[T1, T2]) Backward(yield func(T1, T2) bool) {
+	ctx := context.Background()
+	sql := fmt.Sprintf("SELECT key, value FROM %s ORDER BY key desc", s.table)
+	rows, err := s.db.QueryContext(ctx, sql)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var k T1
+		var v T2
+		var keyStr string
+		var valueStr string
+		if err := rows.Scan(&keyStr, &valueStr); err != nil {
+			panic(err)
+		}
+
+		if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+			panic(err)
+		}
+
+		if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
+			panic(err)
+		}
+
+		if !yield(k, v) {
+			return
+		}
+	}
+}
+
+// All is an iterator over all elements starting from the head of l.
+func (s *KV[T1, T2]) All(yield func(T1, T2) bool) {
+	ctx := context.Background()
+	sql := fmt.Sprintf("SELECT key, value FROM %s ORDER BY key", s.table)
+	rows, err := s.db.QueryContext(ctx, sql)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var k T1
+		var v T2
+		var keyStr string
+		var valueStr string
+		if err := rows.Scan(&keyStr, &valueStr); err != nil {
+			panic(err)
+		}
+
+		if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+			panic(err)
+		}
+
+		if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
+			panic(err)
+		}
+
+		if !yield(k, v) {
+			return
+		}
+	}
+}
+
+// Iter returns an iterator for use with Go 1.23+ range-over-func
+func (s *KV[T1, T2]) Iter() func(func(T1, T2) bool) {
+	return func(yield func(T1, T2) bool) {
+		ctx := context.Background()
+		sql := fmt.Sprintf("SELECT key, value FROM %s ORDER BY key", s.table)
+		rows, err := s.db.QueryContext(ctx, sql)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var k T1
+			var v T2
+			var keyStr string
+			var valueStr string
+			if err := rows.Scan(&keyStr, &valueStr); err != nil {
+				panic(err)
+			}
+
+			if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+				panic(err)
+			}
+
+			if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
+				panic(err)
+			}
+
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
+}
+
+// IterReverse returns a reverse iterator for use with Go 1.23+ range-over-func
+func (s *KV[T1, T2]) IterReverse() func(func(T1, T2) bool) {
+	return func(yield func(T1, T2) bool) {
+		ctx := context.Background()
+		sql := fmt.Sprintf("SELECT key, value FROM %s ORDER BY key DESC", s.table)
+		rows, err := s.db.QueryContext(ctx, sql)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var k T1
+			var v T2
+			var keyStr string
+			var valueStr string
+			if err := rows.Scan(&keyStr, &valueStr); err != nil {
+				return
+			}
+
+			if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+				return
+			}
+
+			if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
+				return
+			}
+
+			if !yield(k, v) {
+				return
+			}
+		}
 	}
 }
 
