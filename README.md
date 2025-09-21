@@ -34,5 +34,4 @@ func main() {
 - `Has(K)` bool
 - `Delete(K)`
 - `Clear()`
-- `ForEach(func(K, V))`
 

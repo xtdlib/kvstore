@@ -110,30 +110,6 @@ func TestDeleteNonExistent(t *testing.T) {
 	kv.Delete("nonexistent")
 }
 
-func TestForEach(t *testing.T) {
-	kv := kvstore.New[string, int]("test_foreach")
-
-	// Add test data
-	kv.Set("a", 1)
-	kv.Set("b", 2)
-	kv.Set("c", 3)
-
-	// Count items
-	count := 0
-	sum := 0
-	kv.ForEach(func(key string, value int) {
-		count++
-		sum += value
-	})
-
-	if count != 3 {
-		t.Fatalf("Expected 3 items, got %d", count)
-	}
-	if sum != 6 {
-		t.Fatalf("Expected sum of 6, got %d", sum)
-	}
-}
-
 func TestClear(t *testing.T) {
 	kv := kvstore.New[string, string]("test_clear")
 
@@ -238,33 +214,6 @@ func TestTryDelete(t *testing.T) {
 	_, err = kv.TryGet("key1")
 	if err == nil {
 		t.Fatal("Expected error after delete")
-	}
-}
-
-func TestTryForEach(t *testing.T) {
-	kv := kvstore.New[string, int]("test_try_foreach")
-
-	// Add test data using Try methods
-	kv.TrySet("a", 1)
-	kv.TrySet("b", 2)
-	kv.TrySet("c", 3)
-
-	// Count items
-	count := 0
-	sum := 0
-	err := kv.TryForEach(func(key string, value int) {
-		count++
-		sum += value
-	})
-
-	if err != nil {
-		t.Fatalf("TryForEach failed: %v", err)
-	}
-	if count != 3 {
-		t.Fatalf("Expected 3 items, got %d", count)
-	}
-	if sum != 6 {
-		t.Fatalf("Expected sum of 6, got %d", sum)
 	}
 }
 

@@ -301,72 +301,6 @@ func (s *KV[T1, T2]) TryDelete(key T1) error {
 	return nil
 }
 
-func (s *KV[T1, T2]) TryForEachReverse(fn func(key T1, value T2)) error {
-	ctx := context.Background()
-	sql := fmt.Sprintf("SELECT key, value FROM %s order by key desc", s.table)
-	rows, err := s.db.QueryContext(ctx, sql)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var k T1
-		var v T2
-		var keyStr string
-		var valueStr string
-		if err := rows.Scan(&keyStr, &valueStr); err != nil {
-			return err
-		}
-
-		// Deserialize key from JSON
-		if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
-			return fmt.Errorf("failed to unmarshal key: %w", err)
-		}
-
-		// Deserialize value from JSON
-		if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
-			return fmt.Errorf("failed to unmarshal value: %w", err)
-		}
-
-		fn(k, v)
-	}
-	return rows.Err()
-}
-
-func (s *KV[T1, T2]) TryForEach(fn func(key T1, value T2)) error {
-	ctx := context.Background()
-	sql := fmt.Sprintf("SELECT key, value FROM %s order by key", s.table)
-	rows, err := s.db.QueryContext(ctx, sql)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var k T1
-		var v T2
-		var keyStr string
-		var valueStr string
-		if err := rows.Scan(&keyStr, &valueStr); err != nil {
-			return err
-		}
-
-		// Deserialize key from JSON
-		if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
-			return fmt.Errorf("failed to unmarshal key: %w", err)
-		}
-
-		// Deserialize value from JSON
-		if err := json.Unmarshal([]byte(valueStr), &v); err != nil {
-			return fmt.Errorf("failed to unmarshal value: %w", err)
-		}
-
-		fn(k, v)
-	}
-	return rows.Err()
-}
-
 func (s *KV[T1, T2]) TryClear() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -452,8 +386,8 @@ func (s *KV[T1, T2]) SetNX(key T1, value T2) T2 {
 	return s.Set(key, value)
 }
 
-// Set if Empty or Zero
-func (s *KV[T1, T2]) SetEZ(key T1, value T2) T2 {
+// Set if Not Zero
+func (s *KV[T1, T2]) SetNZ(key T1, value T2) T2 {
 	var zero T2
 	if value != zero {
 		out, err := s.TrySet(key, value)
@@ -502,18 +436,6 @@ func (s *KV[T1, T2]) Has(key T1) bool {
 
 func (s *KV[T1, T2]) Delete(key T1) {
 	if err := s.TryDelete(key); err != nil {
-		panic(err)
-	}
-}
-
-func (s *KV[T1, T2]) ForEach(fn func(key T1, value T2)) {
-	if err := s.TryForEach(fn); err != nil {
-		panic(err)
-	}
-}
-
-func (s *KV[T1, T2]) ForEachReverse(fn func(key T1, value T2)) {
-	if err := s.TryForEachReverse(fn); err != nil {
 		panic(err)
 	}
 }

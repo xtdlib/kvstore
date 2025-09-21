@@ -15,18 +15,6 @@ func main() {
 	store.Set("banana", 3)
 	store.Set("cherry", 8)
 
-	// go func() {
-	// 	time.Sleep(time.Second)
-	// 	store.Set("date", 10)
-	// 	log.Println("date", store.Get("date"))
-	// }()
-	//
-	// // Iterate using range-over-func (Go 1.23+)
-	// fmt.Println("Forward iteration:")
-	// for key, value := range store.Iter() {
-	// 	time.Sleep(time.Second)
-	// }
-
 	for k, v := range store.All {
 		fmt.Printf("%s: %d\n", k, v)
 	}
@@ -34,16 +22,4 @@ func main() {
 	for k, v := range store.Backward {
 		fmt.Printf("%s: %d\n", k, v)
 	}
-
-	it := store.Backward
-	// for it.Next() {
-	// }
-
-	// slices.Collect(store.Iter)
-
-	// Output:
-	// Forward iteration:
-	// apple: 5
-	// banana: 3
-	// cherry: 8
 }

@@ -22,12 +22,6 @@ func main() {
 
 	store.Set(rat.Rat("1/3"), rat.Rat(5))
 	ksum := rat.Rat(0)
-	store.ForEach(func(k *rat.Rational, v *rat.Rational) {
-		log.Println(k.FractionString(), v.FractionString())
-		log.Println(k.String(), v.String())
-		ksum = ksum.Add(k)
-	})
-	ksum.SetPrecision(9)
 
 	if !ksum.Equal("4/3") {
 		log.Println("ksum:", ksum.FractionString())
