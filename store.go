@@ -446,7 +446,7 @@ func (s *KV[T1, T2]) Clear() {
 	}
 }
 
-// All is an iterator over all elements starting from the head of l.
+// Backward is an iterator over all elements in reverse order.
 func (s *KV[T1, T2]) Backward(yield func(T1, T2) bool) {
 	ctx := context.Background()
 	sql := fmt.Sprintf("SELECT key, value FROM %s ORDER BY key desc", s.table)
@@ -474,6 +474,60 @@ func (s *KV[T1, T2]) Backward(yield func(T1, T2) bool) {
 		}
 
 		if !yield(k, v) {
+			return
+		}
+	}
+}
+
+// Keys is an iterator over all keys in forward order.
+func (s *KV[T1, T2]) Keys(yield func(T1) bool) {
+	ctx := context.Background()
+	sql := fmt.Sprintf("SELECT key FROM %s ORDER BY key", s.table)
+	rows, err := s.db.QueryContext(ctx, sql)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var k T1
+		var keyStr string
+		if err := rows.Scan(&keyStr); err != nil {
+			panic(err)
+		}
+
+		if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+			panic(err)
+		}
+
+		if !yield(k) {
+			return
+		}
+	}
+}
+
+// KeysBackward is an iterator over all keys in reverse order.
+func (s *KV[T1, T2]) KeysBackward(yield func(T1) bool) {
+	ctx := context.Background()
+	sql := fmt.Sprintf("SELECT key FROM %s ORDER BY key DESC", s.table)
+	rows, err := s.db.QueryContext(ctx, sql)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var k T1
+		var keyStr string
+		if err := rows.Scan(&keyStr); err != nil {
+			panic(err)
+		}
+
+		if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+			panic(err)
+		}
+
+		if !yield(k) {
 			return
 		}
 	}
@@ -576,6 +630,64 @@ func (s *KV[T1, T2]) IterReverse() func(func(T1, T2) bool) {
 			}
 
 			if !yield(k, v) {
+				return
+			}
+		}
+	}
+}
+
+// KeysIter returns an iterator for keys only, for use with Go 1.23+ range-over-func
+func (s *KV[T1, T2]) KeysIter() func(func(T1) bool) {
+	return func(yield func(T1) bool) {
+		ctx := context.Background()
+		sql := fmt.Sprintf("SELECT key FROM %s ORDER BY key", s.table)
+		rows, err := s.db.QueryContext(ctx, sql)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var k T1
+			var keyStr string
+			if err := rows.Scan(&keyStr); err != nil {
+				return
+			}
+
+			if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+				return
+			}
+
+			if !yield(k) {
+				return
+			}
+		}
+	}
+}
+
+// KeysIterReverse returns a reverse iterator for keys only, for use with Go 1.23+ range-over-func
+func (s *KV[T1, T2]) KeysIterReverse() func(func(T1) bool) {
+	return func(yield func(T1) bool) {
+		ctx := context.Background()
+		sql := fmt.Sprintf("SELECT key FROM %s ORDER BY key DESC", s.table)
+		rows, err := s.db.QueryContext(ctx, sql)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var k T1
+			var keyStr string
+			if err := rows.Scan(&keyStr); err != nil {
+				return
+			}
+
+			if err := json.Unmarshal([]byte(keyStr), &k); err != nil {
+				return
+			}
+
+			if !yield(k) {
 				return
 			}
 		}

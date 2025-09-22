@@ -171,7 +171,8 @@ func TestTryGetNotFound(t *testing.T) {
 }
 
 func TestTryHas(t *testing.T) {
-	kv := kvstore.New[string, string]("test_try_has")
+	kv := kvstore.New[string, string]("test_try_has_unique")
+	kv.Clear() // Clear any existing data
 
 	// Test non-existent key
 	exists, err := kv.TryHas("key1")
@@ -270,6 +271,149 @@ func TestGetOr(t *testing.T) {
 	intVal = kvInt.GetOr("answer", 42)
 	if intVal != 100 {
 		t.Fatalf("Got %d, expected 100", intVal)
+	}
+}
+
+func TestKeys(t *testing.T) {
+	kv := kvstore.New[string, string]("test_keys_forward")
+	kv.Clear() // Clear any existing data
+
+	// Test empty store
+	var keys []string
+	kv.Keys(func(key string) bool {
+		keys = append(keys, key)
+		return true
+	})
+	if len(keys) != 0 {
+		t.Fatalf("Expected 0 keys, got %d", len(keys))
+	}
+
+	// Add test data
+	kv.Set("zebra", "value1")
+	kv.Set("apple", "value2")
+	kv.Set("banana", "value3")
+
+	// Test forward iteration - should be sorted
+	keys = nil
+	kv.Keys(func(key string) bool {
+		keys = append(keys, key)
+		return true
+	})
+
+	expected := []string{"apple", "banana", "zebra"}
+	if len(keys) != len(expected) {
+		t.Fatalf("Expected %d keys, got %d", len(expected), len(keys))
+	}
+	for i, key := range keys {
+		if key != expected[i] {
+			t.Fatalf("At index %d: expected %s, got %s", i, expected[i], key)
+		}
+	}
+
+	// Test early termination
+	keys = nil
+	kv.Keys(func(key string) bool {
+		keys = append(keys, key)
+		return len(keys) < 2 // Stop after 2 keys
+	})
+	if len(keys) != 2 {
+		t.Fatalf("Expected 2 keys with early termination, got %d", len(keys))
+	}
+	if keys[0] != "apple" || keys[1] != "banana" {
+		t.Fatalf("Early termination keys incorrect: got %v", keys)
+	}
+}
+
+func TestKeysBackward(t *testing.T) {
+	kv := kvstore.New[string, string]("test_keys_backward_only")
+	kv.Clear() // Clear any existing data
+
+	// Test empty store
+	var keys []string
+	kv.KeysBackward(func(key string) bool {
+		keys = append(keys, key)
+		return true
+	})
+	if len(keys) != 0 {
+		t.Fatalf("Expected 0 keys, got %d", len(keys))
+	}
+
+	// Add test data
+	kv.Set("zebra", "value1")
+	kv.Set("apple", "value2")
+	kv.Set("banana", "value3")
+
+	// Test backward iteration - should be reverse sorted
+	keys = nil
+	kv.KeysBackward(func(key string) bool {
+		keys = append(keys, key)
+		return true
+	})
+
+	expected := []string{"zebra", "banana", "apple"}
+	if len(keys) != len(expected) {
+		t.Fatalf("Expected %d keys, got %d", len(expected), len(keys))
+	}
+	for i, key := range keys {
+		if key != expected[i] {
+			t.Fatalf("At index %d: expected %s, got %s", i, expected[i], key)
+		}
+	}
+
+	// Test early termination
+	keys = nil
+	kv.KeysBackward(func(key string) bool {
+		keys = append(keys, key)
+		return len(keys) < 2 // Stop after 2 keys
+	})
+	if len(keys) != 2 {
+		t.Fatalf("Expected 2 keys with early termination, got %d", len(keys))
+	}
+	if keys[0] != "zebra" || keys[1] != "banana" {
+		t.Fatalf("Early termination keys incorrect: got %v", keys)
+	}
+}
+
+func TestKeysWithIntKeys(t *testing.T) {
+	kv := kvstore.New[int, string]("test_keys_int")
+
+	// Add test data with int keys
+	kv.Set(30, "thirty")
+	kv.Set(10, "ten")
+	kv.Set(20, "twenty")
+
+	// Test forward iteration with int keys
+	var keys []int
+	kv.Keys(func(key int) bool {
+		keys = append(keys, key)
+		return true
+	})
+
+	expected := []int{10, 20, 30}
+	if len(keys) != len(expected) {
+		t.Fatalf("Expected %d keys, got %d", len(expected), len(keys))
+	}
+	for i, key := range keys {
+		if key != expected[i] {
+			t.Fatalf("At index %d: expected %d, got %d", i, expected[i], key)
+		}
+	}
+
+	// Test backward iteration with int keys
+	keys = nil
+	kv.KeysBackward(func(key int) bool {
+		keys = append(keys, key)
+		return true
+	})
+
+	expectedReverse := []int{30, 20, 10}
+	if len(keys) != len(expectedReverse) {
+		t.Fatalf("Expected %d keys, got %d", len(expectedReverse), len(keys))
+	}
+	for i, key := range keys {
+		if key != expectedReverse[i] {
+			t.Fatalf("At index %d: expected %d, got %d", i, expectedReverse[i], key)
+		}
 	}
 }
 
